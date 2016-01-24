@@ -12,6 +12,7 @@ fn main() {
     let mut dictionary = Dictionary::new();
     train(train_file, &mut dictionary);
     //print_dictionary(dictionary);	//testing purposes mostly
+
     correct(stdin());
 }
 
@@ -22,6 +23,7 @@ fn train<R: Read>(train_file: R, mut dictionary: &mut Dictionary) {
 
     while let Some(Ok(line)) = lines.next() {
         if let Ok(unclean_line) = line.parse::<String>() {
+        	//This time, I'm ignoring apostrophes altogether...
             let training_words: Vec<&str> = unclean_line.splitn(unclean_line.len() + 1, |c: char| !c.is_alphabetic()).collect();
 
             for word in training_words {
@@ -46,9 +48,73 @@ fn increment_word(mut map: &mut Dictionary, word: String) {
 
 fn correct<R: Read>(input: R) {
 	let mut words = BufReader::new(input).lines();
+	let alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 	while let Some(Ok(word)) = words.next() {
-		println!("{}", word);
+		let mut splits: Vec<_> = Vec::new();
+		let mut deletes: Vec<String> = Vec::new();
+		let mut transposes: Vec<String> = Vec::new();
+		let mut replaces: Vec<String> = Vec::new();
+		let mut inserts: Vec<String> = Vec::new();
+
+		for i in 0..(word.len() + 1) {
+			splits.push(word.split_at(i));
+		}
+
+		// for x in splits {
+		// 	println!("{} {}", x.0, x.1);
+		// }
+
+		for split in splits {
+			if !(split.1).is_empty() {
+				deletes.push(String::from(split.0) + (split.1).split_at(1).1);
+			}
+
+			if split.1.len() > 1 {
+				let (chars_to_switch, rest) = split.1.split_at(2);
+				let switch_iter: Vec<char> = chars_to_switch.chars().collect();
+				let mut new_string = String::from(split.0);
+				new_string.push(switch_iter[1]);
+				new_string.push(switch_iter[0]);
+				transposes.push(new_string + rest);
+			}
+
+			for letter in alphabet.chars() {
+				if !(split.1).is_empty() {
+					let mut replace_string = String::from(split.0);
+					replace_string.push(letter);
+					replaces.push(replace_string + (split.1).split_at(1).1);
+				}
+				
+				let mut insert_string = String::from(split.0);
+				insert_string.push(letter);
+				inserts.push(insert_string + split.1);
+			}
+		}
+
+		for edit in deletes {
+			println!("{}", edit);
+		}
+
+		println!("");
+
+		for edit in transposes {
+			println!("{}", edit);
+		}
+
+		println!("");
+
+		for edit in replaces {
+			println!("{}", edit);
+		}
+
+		println!("");
+
+		for edit in inserts {
+			println!("{}", edit);
+		}
+
+		println!("");
 	}
 }
 
@@ -62,36 +128,45 @@ fn correct<R: Read>(input: R) {
 // }
 
 #[cfg(test)]
-mod training_tests {
-	use super::{Dictionary, train};
-    use std::io::{Read, Result};
+mod tests {
+	use std::io::{Read, Result};
 
-	#[test]
-	fn basic_training() {
-		let input = StringReader::new("hello world hello word hello world".to_owned());
-        let mut under_test = Dictionary::new();
-        train(input, &mut under_test);
-
-        let mut expected = Dictionary::new();
-        expected.insert("hello".to_owned(), 3);
-        expected.insert("world".to_owned(), 2);
-        expected.insert("word".to_owned(), 1);
-
-        assert_eq!(expected, under_test);
+	mod correct_tests {
+		use super::StringReader;
+    	use super::super::{Dictionary, train, correct};
 	}
 
-	#[test]
-	fn ignore_non_alphabetic_training() {
-		let input = StringReader::new("hello\n####'''world hello\nword 395 hello world".to_owned());
-        let mut under_test = Dictionary::new();
-        train(input, &mut under_test);
+    mod training_tests {
+    	use super::StringReader;
+    	use super::super::{Dictionary, train};
+    	
+		#[test]
+		fn basic_training() {
+			let input = StringReader::new("hello world hello word hello world".to_owned());
+	        let mut under_test = Dictionary::new();
+	        train(input, &mut under_test);
 
-        let mut expected = Dictionary::new();
-        expected.insert("hello".to_owned(), 3);
-        expected.insert("world".to_owned(), 2);
-        expected.insert("word".to_owned(), 1);
+	        let mut expected = Dictionary::new();
+	        expected.insert("hello".to_owned(), 3);
+	        expected.insert("world".to_owned(), 2);
+	        expected.insert("word".to_owned(), 1);
 
-        assert_eq!(expected, under_test);
+	        assert_eq!(expected, under_test);
+		}
+
+		#[test]
+		fn ignore_non_alphabetic_training() {
+			let input = StringReader::new("hello\n####'''world hello\nword 395 hello world".to_owned());
+	        let mut under_test = Dictionary::new();
+	        train(input, &mut under_test);
+
+	        let mut expected = Dictionary::new();
+	        expected.insert("hello".to_owned(), 3);
+	        expected.insert("world".to_owned(), 2);
+	        expected.insert("word".to_owned(), 1);
+
+	        assert_eq!(expected, under_test);
+		}
 	}
 
 	struct StringReader {
