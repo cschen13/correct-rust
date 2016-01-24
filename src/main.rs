@@ -13,7 +13,7 @@ fn main() {
     train(train_file, &mut dictionary);
     //print_dictionary(dictionary);	//testing purposes mostly
 
-    correct(stdin(), &mut dictionary);
+    correct(stdin(), &dictionary);
 }
 
 type Dictionary = std::collections::BTreeMap<String, usize>;
@@ -46,7 +46,7 @@ fn increment_word(mut map: &mut Dictionary, word: String) {
 }
 
 
-fn correct<R: Read>(input: R, dictionary: &mut Dictionary) {
+fn correct<R: Read>(input: R, dictionary: &Dictionary) {
 	let mut words = BufReader::new(input).lines();
 
 	while let Some(Ok(word)) = words.next() {
@@ -57,10 +57,6 @@ fn correct<R: Read>(input: R, dictionary: &mut Dictionary) {
 		}
 
 		let mut splits: Vec<_> = Vec::new();
-		// let mut deletes: Vec<String> = Vec::new();
-		// let mut transposes: Vec<String> = Vec::new();
-		// let mut replaces: Vec<String> = Vec::new();
-		// let mut inserts: Vec<String> = Vec::new();
 		let mut first_edits: Vec<String> = Vec::new();
 		let original_word = word.clone();
 
@@ -68,26 +64,15 @@ fn correct<R: Read>(input: R, dictionary: &mut Dictionary) {
 			splits.push(word.split_at(i));
 		}
 
-		// for x in splits {
-		// 	println!("{} {}", x.0, x.1);
-		// }
-
 		make_edits(&mut splits, &mut first_edits);
 
-		let mut edit = "-";
-		for word_edit in &first_edits {
-			if dictionary.contains_key(&*word_edit) {
-				let frequency = *dictionary.get(&*word_edit).unwrap();
-				if frequency > max_frequency {
-					edit = &*word_edit;
-					max_frequency = frequency;
-			    }
-			}
-		}
+		match possible_edit(&mut max_frequency, &mut first_edits, &dictionary) {
+			Some(edit) => {
+				println!("{}, {}", original_word, edit);
+				continue;
+			} None => {
 
-		if edit != "-" {
-			println!("{}, {}", original_word, edit);
-			continue;
+			}
 		}
 
 		let mut second_splits: Vec<_> = Vec::new();
@@ -100,30 +85,23 @@ fn correct<R: Read>(input: R, dictionary: &mut Dictionary) {
 		}
 
 		make_edits(&mut second_splits, &mut second_edits);
-
-		let mut edit = "-";
-		for word_edit in &second_edits {
-			if dictionary.contains_key(&*word_edit) {
-				let frequency = *dictionary.get(&*word_edit).unwrap();
-				if frequency > max_frequency {
-					edit = &*word_edit;
-					max_frequency = frequency;
-			    }
+		match possible_edit(&mut max_frequency, &mut second_edits, &dictionary) {
+			Some(edit) => {
+				println!("{}, {}", original_word, edit);
+			} None => {
+				println!("{}, {}", original_word, "-");
 			}
 		}
-
-		println!("{}, {}", original_word, edit);
-
 	}	
 }
 
-fn make_edits(splits: &mut Vec<(&str, &str)>, first_edits: &mut Vec<String>) {
+fn make_edits(splits: &mut Vec<(&str, &str)>, edits: &mut Vec<String>) {
 	let alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 	for split in splits {
 		//Deletes
 		if !(split.1).is_empty() {
-			first_edits.push(String::from(split.0) + (split.1).split_at(1).1);
+			edits.push(String::from(split.0) + (split.1).split_at(1).1);
 		}
 
 		//Transposes
@@ -133,7 +111,7 @@ fn make_edits(splits: &mut Vec<(&str, &str)>, first_edits: &mut Vec<String>) {
 			let mut new_string = String::from(split.0);
 			new_string.push(switch_iter[1]);
 			new_string.push(switch_iter[0]);
-			first_edits.push(new_string + rest);
+			edits.push(new_string + rest);
 		}
 
 		//Replaces and Inserts
@@ -141,18 +119,37 @@ fn make_edits(splits: &mut Vec<(&str, &str)>, first_edits: &mut Vec<String>) {
 			if !(split.1).is_empty() {
 				let mut replace_string = String::from(split.0);
 				replace_string.push(letter);
-				first_edits.push(replace_string + (split.1).split_at(1).1);
+				edits.push(replace_string + (split.1).split_at(1).1);
 			}
 			
 			let mut insert_string = String::from(split.0);
 			insert_string.push(letter);
-			first_edits.push(insert_string + split.1);
+			edits.push(insert_string + split.1);
 		}
 	}
 
 	// for x in first_edits {
 	// 	println!("{}", x);
 	// }
+}
+
+fn possible_edit<'a, 'b>(max_frequency: &'a mut usize, edits: &'a mut Vec<String>, dictionary: &'b Dictionary) -> Option<&'a str> {
+	let mut edit = "-";
+	for word_edit in edits {
+		if dictionary.contains_key(&*word_edit) {
+			let frequency = *dictionary.get(&*word_edit).unwrap();
+			if frequency > *max_frequency {
+				edit = &*word_edit;
+				*max_frequency = frequency;
+		    }
+		}
+	}
+
+	if edit != "-" {
+		Some(edit)
+	} else {
+		None
+	}
 }
 
 // fn print_dictionary(dictionary: Dictionary) {
