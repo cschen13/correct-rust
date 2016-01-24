@@ -13,7 +13,7 @@ fn main() {
     train(train_file, &mut dictionary);
     //print_dictionary(dictionary);	//testing purposes mostly
 
-    correct(stdin());
+    correct(stdin(), &mut dictionary);
 }
 
 type Dictionary = std::collections::BTreeMap<String, usize>;
@@ -46,16 +46,23 @@ fn increment_word(mut map: &mut Dictionary, word: String) {
 }
 
 
-fn correct<R: Read>(input: R) {
+fn correct<R: Read>(input: R, dictionary: &mut Dictionary) {
 	let mut words = BufReader::new(input).lines();
-	let alphabet = "abcdefghijklmnopqrstuvwxyz";
 
 	while let Some(Ok(word)) = words.next() {
+		let mut max_frequency: usize = 0;
+		if dictionary.contains_key(&*word) {
+			println!("{}", word);
+			continue;
+		}
+
 		let mut splits: Vec<_> = Vec::new();
-		let mut deletes: Vec<String> = Vec::new();
-		let mut transposes: Vec<String> = Vec::new();
-		let mut replaces: Vec<String> = Vec::new();
-		let mut inserts: Vec<String> = Vec::new();
+		// let mut deletes: Vec<String> = Vec::new();
+		// let mut transposes: Vec<String> = Vec::new();
+		// let mut replaces: Vec<String> = Vec::new();
+		// let mut inserts: Vec<String> = Vec::new();
+		let mut first_edits: Vec<String> = Vec::new();
+		let original_word = word.clone();
 
 		for i in 0..(word.len() + 1) {
 			splits.push(word.split_at(i));
@@ -65,57 +72,87 @@ fn correct<R: Read>(input: R) {
 		// 	println!("{} {}", x.0, x.1);
 		// }
 
-		for split in splits {
+		make_edits(&mut splits, &mut first_edits);
+
+		let mut edit = "-";
+		for word_edit in &first_edits {
+			if dictionary.contains_key(&*word_edit) {
+				let frequency = *dictionary.get(&*word_edit).unwrap();
+				if frequency > max_frequency {
+					edit = &*word_edit;
+					max_frequency = frequency;
+			    }
+			}
+		}
+
+		if edit != "-" {
+			println!("{}, {}", original_word, edit);
+			continue;
+		}
+
+		let mut second_splits: Vec<_> = Vec::new();
+		let mut second_edits: Vec<String> = Vec::new();
+
+		for word_edit in &first_edits {
+			for i in 0..(word_edit.len() + 1) {
+				second_splits.push(word_edit.split_at(i));
+			}
+		}
+
+		make_edits(&mut second_splits, &mut second_edits);
+
+		let mut edit = "-";
+		for word_edit in &second_edits {
+			if dictionary.contains_key(&*word_edit) {
+				let frequency = *dictionary.get(&*word_edit).unwrap();
+				if frequency > max_frequency {
+					edit = &*word_edit;
+					max_frequency = frequency;
+			    }
+			}
+		}
+
+		println!("{}, {}", original_word, edit);
+
+	}	
+}
+
+fn make_edits(splits: &mut Vec<(&str, &str)>, first_edits: &mut Vec<String>) {
+	let alphabet = "abcdefghijklmnopqrstuvwxyz";
+
+	for split in splits {
+		//Deletes
+		if !(split.1).is_empty() {
+			first_edits.push(String::from(split.0) + (split.1).split_at(1).1);
+		}
+
+		//Transposes
+		if split.1.len() > 1 {
+			let (chars_to_switch, rest) = split.1.split_at(2);
+			let switch_iter: Vec<char> = chars_to_switch.chars().collect();
+			let mut new_string = String::from(split.0);
+			new_string.push(switch_iter[1]);
+			new_string.push(switch_iter[0]);
+			first_edits.push(new_string + rest);
+		}
+
+		//Replaces and Inserts
+		for letter in alphabet.chars() {
 			if !(split.1).is_empty() {
-				deletes.push(String::from(split.0) + (split.1).split_at(1).1);
+				let mut replace_string = String::from(split.0);
+				replace_string.push(letter);
+				first_edits.push(replace_string + (split.1).split_at(1).1);
 			}
-
-			if split.1.len() > 1 {
-				let (chars_to_switch, rest) = split.1.split_at(2);
-				let switch_iter: Vec<char> = chars_to_switch.chars().collect();
-				let mut new_string = String::from(split.0);
-				new_string.push(switch_iter[1]);
-				new_string.push(switch_iter[0]);
-				transposes.push(new_string + rest);
-			}
-
-			for letter in alphabet.chars() {
-				if !(split.1).is_empty() {
-					let mut replace_string = String::from(split.0);
-					replace_string.push(letter);
-					replaces.push(replace_string + (split.1).split_at(1).1);
-				}
-				
-				let mut insert_string = String::from(split.0);
-				insert_string.push(letter);
-				inserts.push(insert_string + split.1);
-			}
+			
+			let mut insert_string = String::from(split.0);
+			insert_string.push(letter);
+			first_edits.push(insert_string + split.1);
 		}
-
-		for edit in deletes {
-			println!("{}", edit);
-		}
-
-		println!("");
-
-		for edit in transposes {
-			println!("{}", edit);
-		}
-
-		println!("");
-
-		for edit in replaces {
-			println!("{}", edit);
-		}
-
-		println!("");
-
-		for edit in inserts {
-			println!("{}", edit);
-		}
-
-		println!("");
 	}
+
+	// for x in first_edits {
+	// 	println!("{}", x);
+	// }
 }
 
 // fn print_dictionary(dictionary: Dictionary) {
