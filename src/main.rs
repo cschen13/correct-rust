@@ -12,12 +12,13 @@ fn main() {
     let mut dictionary = Dictionary::new();
     train(train_file, &mut dictionary);
     //print_dictionary(dictionary);	//testing purposes mostly
-
     correct(stdin(), &dictionary);
 }
 
 type Dictionary = std::collections::BTreeMap<String, usize>;
 
+/// Counts the frequency of each word in a file and adds each word/frequency
+/// pair into a HashMap.
 fn train<R: Read>(train_file: R, mut dictionary: &mut Dictionary) {
     let mut lines = BufReader::new(train_file).lines();
 
@@ -41,17 +42,23 @@ fn train<R: Read>(train_file: R, mut dictionary: &mut Dictionary) {
     }
 }
 
+/// Given a word (key), increments the frequency (value) by one, or
+/// inserts it into the 'Dictionary' if it doesn't exist.
 fn increment_word(mut map: &mut Dictionary, word: String) {
     *map.entry(word).or_insert(0) += 1;
 }
 
-
+/// Prints each word in the input along with a suggested correction
+/// OR a "-" if no correction exists within two small edits.
+///
+/// Note: the correction logic places precedence on single-edit
+/// corrections over double-edit corrections.
 fn correct<R: Read>(input: R, dictionary: &Dictionary) {
 	let mut words = BufReader::new(input).lines();
 
 	while let Some(Ok(word)) = words.next() {
 		let mut max_frequency: usize = 0;
-		if dictionary.contains_key(&*word) {
+		if dictionary.contains_key(&*word.to_lowercase()) {
 			println!("{}", word);
 			continue;
 		}
@@ -95,6 +102,8 @@ fn correct<R: Read>(input: R, dictionary: &Dictionary) {
 	}	
 }
 
+/// Computes and stores all possible single small edits of a word into the 
+/// "edits" 'Vec<String>'.
 fn make_edits(splits: &mut Vec<(&str, &str)>, edits: &mut Vec<String>) {
 	let alphabet = "abcdefghijklmnopqrstuvwxyz";
 
@@ -127,17 +136,15 @@ fn make_edits(splits: &mut Vec<(&str, &str)>, edits: &mut Vec<String>) {
 			edits.push(insert_string + split.1);
 		}
 	}
-
-	// for x in first_edits {
-	// 	println!("{}", x);
-	// }
 }
 
+/// Calculates the most likely correction of a word from
+/// a 'Vec<String>' of its edited versions, given a 'Dictionary'.
 fn possible_edit<'a, 'b>(max_frequency: &'a mut usize, edits: &'a mut Vec<String>, dictionary: &'b Dictionary) -> Option<&'a str> {
 	let mut edit = "-";
 	for word_edit in edits {
-		if dictionary.contains_key(&*word_edit) {
-			let frequency = *dictionary.get(&*word_edit).unwrap();
+		if dictionary.contains_key(&*word_edit.to_lowercase()) {
+			let frequency = *dictionary.get(&*word_edit.to_lowercase()).unwrap();
 			if frequency > *max_frequency {
 				edit = &*word_edit;
 				*max_frequency = frequency;
@@ -152,6 +159,8 @@ fn possible_edit<'a, 'b>(max_frequency: &'a mut usize, edits: &'a mut Vec<String
 	}
 }
 
+///Prints the entries in the 'Dictionary'. This function was used 
+/// mainly for testing purposes.
 // fn print_dictionary(dictionary: Dictionary) {
 // 	let mut sorted_vec: Vec<_> = dictionary.iter().collect();
 //     sorted_vec.sort_by(|a, b| b.1.cmp(a.1));
@@ -166,8 +175,76 @@ mod tests {
 	use std::io::{Read, Result};
 
 	mod correct_tests {
+		//I don't know how to test the correct function using unit tests,
+		//since I can only tell if it worked from the output (my function
+		//doesn't return anything). 
+
+		//A workaround that I've used is to only run
+		//the tests in this module one at a time with -- --nocapture
+		//on to see the output and confirm that it is correct.
 		use super::StringReader;
     	use super::super::{Dictionary, train, correct};
+
+    	#[test]
+    	fn deletes_test() {
+    		let training_file = StringReader::new("hello world hello word hello world".to_owned());
+	        let mut dictionary = Dictionary::new();
+	        train(training_file, &mut dictionary);
+
+	        let input_file = StringReader::new("Hellob\nkhello\nwjorld\nwioprld".to_owned());
+	        correct(input_file, &dictionary);
+	        //use --nocapture and verify that corrections return:
+	        //Hello
+	        //hello
+	        //world
+	        //world
+    	}
+
+    	
+    	fn replaces_test() {
+    		let training_file = StringReader::new("hello world hello word hello world".to_owned());
+	        let mut dictionary = Dictionary::new();
+	        train(training_file, &mut dictionary);
+
+	        let input_file = StringReader::new("Hellb\nyello\ndorw\nrorld".to_owned());
+	        correct(input_file, &dictionary);
+	        //use --nocapture and verify that corrections return:
+	        //Hello
+	        //hello
+	        //word
+	        //world
+	    }
+
+	    
+	    fn transposes_test() {
+    		let training_file = StringReader::new("hello world hello word hello world".to_owned());
+	        let mut dictionary = Dictionary::new();
+	        train(training_file, &mut dictionary);
+
+	        let input_file = StringReader::new("eHllo\nehlol\nowdr\nowrdl".to_owned());
+	        correct(input_file, &dictionary);
+	        //use --nocapture and verify that corrections return:
+	        //Hello
+	        //hello
+	        //word
+	        //world
+	    }
+
+	    
+	    fn inserts_test() {
+    		let training_file = StringReader::new("hello world hello word hello world".to_owned());
+	        let mut dictionary = Dictionary::new();
+	        train(training_file, &mut dictionary);
+
+	        let input_file = StringReader::new("Helo\nheo\nwd\nwld".to_owned());
+	        correct(input_file, &dictionary);
+	        //use --nocapture and verify that corrections return:
+	        //Hello
+	        //hello
+	        //word
+	        //world
+	    }
+
 	}
 
     mod training_tests {
